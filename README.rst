@@ -1,12 +1,9 @@
-DeploymentCalibrator for Slocum ocean gliders
-=============================================
+HZGnetCDF: Easy writing of netCDF files
+=======================================
 
 Synopsis
 --------
 
-Todo
+The HZGnetCDF package provides a number of classes that
+facilitate to write netCDF files.
 
-Introduction
-------------
-
-Todo
