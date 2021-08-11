@@ -3,8 +3,8 @@ import numpy as np
 from netCDF4 import Dataset
 import arrow
 
-class ncHZG(object):
-    ''' Minimal implementation of NetCDF file adhering to HZG specs
+class ncHereon(object):
+    ''' Minimal implementation of NetCDF file adhering to Hereon specs
 
     Parameters
     ----------
@@ -30,7 +30,7 @@ class ncHZG(object):
 
     Example
     -------
-    >>> with ncHZG("test.nc", **conf) as nc:
+    >>> with ncHereon("test.nc", **conf) as nc:
     >>>     nc.add_parameter("latitude", "degree north", velocity.t, velocity.lat)
     >>>     nc.add_parameter("longitude", "degree east", velocity.t, velocity.lon)
     >>>     nc.add_parameter("eastward current", "m/s" , velocity.t, velocity.z, velocity.u)
@@ -152,8 +152,8 @@ class ncHZG(object):
 
 
     
-class ncGliderFlight(ncHZG):
-    ''' Minimal implementation of NetCDF file adhering to HZG specs
+class ncGliderFlight(ncHereon):
+    ''' Minimal implementation of NetCDF file adhering to Hereon specs
         specialised to store GliderFlight data.
 
     Parameters
