@@ -40,6 +40,12 @@ class ncHereon(object):
     def __init__(self, filename, mode='w', title="", source="", originator="", contact="", crs='WGS84', **meta_data):
         self.dataset = Dataset(filename, mode=mode)
         self.dims = {}
+        if mode=='w':
+            self.initialise_dataset(title, source, originator, contact, crs, **meta_data)
+            
+    def initialise_dataset(self, title="", source="", originator="", contact="", crs='WGS84', **meta_data):
+        self.dataset.conventions = "CF-1.8"
+        self.dataset.institution = "Helmholtz-Zentrum Hereon, Institute of Coastal Systems, Germany"
         self.dataset.title = title
         self.dataset.source = source
         self.dataset.originator = originator
@@ -116,6 +122,12 @@ class ncHereon(object):
     def close(self):
         ''' Closes netcdf file'''
         self.dataset.close()
+
+    def get(self, parameter, *p):
+        r = [self.dataset.variables['time'][...],
+             self.dataset.variables[parameter][...]]
+        r += [self.dataset.variables[_p][...] for _p in p]
+        return r
         
     def __enter__(self, *p):
         return self
