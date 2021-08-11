@@ -3,7 +3,7 @@
 import os
 from setuptools import find_packages, setup
 
-about = {'name':"HZGnetCDF"}
+about = {'name':"GliderNetCDF"}
 
 
 with open(f"{about['name']}/_version.py", encoding="utf-8") as f:
