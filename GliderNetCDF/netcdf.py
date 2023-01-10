@@ -1,7 +1,10 @@
+from itertools import chain
 import os
 import numpy as np
 from netCDF4 import Dataset
 import arrow
+
+
 
 class ncHereon(object):
     ''' Minimal implementation of NetCDF file adhering to Hereon specs
@@ -37,9 +40,10 @@ class ncHereon(object):
     >>>     nc.add_parameter("northward current", "m/s" , velocity.t, velocity.z, velocity.v)
     >>>     nc.add_parameter("upward current", "m/s" , velocity.t, velocity.z, velocity.w)
     '''
-    def __init__(self, filename, mode='w', title="", source="", originator="", contact="", crs='WGS84', **meta_data):
+    def __init__(self, filename, mode='r', title="", source="", originator="", contact="", crs='WGS84', **meta_data):
         self.dataset = Dataset(filename, mode=mode)
-        self.dims = {}
+        self.groups = dict(root = self.dataset)
+        self.dims = dict(root = {})
         if mode=='w':
             self.initialise_dataset(title, source, originator, contact, crs, **meta_data)
             
@@ -71,6 +75,12 @@ class ncHereon(object):
         ''' Add a meta variable
 
         Add a meta variable to the netCDF file. 
+
+        A name can have a path-like structure to mimic groups. For example:
+        
+        name="gps/lat" 
+        
+        to create a group with its own time base.
         
         Parameters
         ----------
@@ -102,16 +112,17 @@ class ncHereon(object):
             specify time dimension to use. If not set "T" will be used.
         '''
         time_dimension = time_dimension or "T"
-        
+        grp_name, param_name = self._get_group_and_parameter_name(name)
+        grp = self._check_for_group(grp_name)
         if len(v) == 2:
             self._check_for_time_dimension(v[0], name, time_dimension)
-            var = self.dataset.createVariable(name, "f8", dimensions=(time_dimension,))
+            var = grp.createVariable(param_name, "f8", dimensions=(time_dimension,))
             var.units = unit
             var[:] = v[1]
         elif len(v) == 3:
             self._check_for_time_dimension(v[0], name, time_dimension)
-            self._check_for_z_dimension(v[1])
-            var = self.dataset.createVariable(name, "f8", dimensions=(time_dimension, "Z"))
+            self._check_for_z_dimension(v[1], name)
+            var = grp.createVariable(param_name, "f8", dimensions=(time_dimension, "Z"))
             var.units = unit
             var[...] = v[2]
         else:
@@ -119,50 +130,78 @@ class ncHereon(object):
         if not standard_name is None:
             var.standard_name = standard_name
 
+    
     def close(self):
         ''' Closes netcdf file'''
         self.dataset.close()
 
     def get(self, parameter, *p):
-        r = [self.dataset.variables['time'][...],
-             self.dataset.variables[parameter][...]]
-        r += [self.dataset.variables[_p][...] for _p in p]
+        r = []
+        for _p in chain([parameter], p):
+            r.append(self._get(_p))
+        if len(r)==1:
+            return r[0]
+        else:
+            return r
+
+    def _get(self, parameter):
+        grp_name, param_name = self._get_group_and_parameter_name(parameter)
+        if grp_name == "root":
+            grp = self.dataset
+        else:
+            grp = self.dataset[grp_name]
+        v = grp.variables[param_name]
+        if v.dimensions == ('T',):
+            r = (grp.variables['time'][...],
+                 v[...])
+        elif v.dimensions == ('T','Z'):
+            r = (grp.variables['time'][...],
+                 grp.variables['z'][...],
+                 v[...])
         return r
-        
+    
     def __enter__(self, *p):
         return self
 
     def __exit__(self, *p):
         self.dataset.close()
         
-    def _get_time_name(self, name):
-        f = list(os.path.split(name))
-        f[-1]='time'
-        s = "/".join(f)
-        return s
             
     def _check_for_time_dimension(self,t, name, time_dimension):
-        tstr = self._get_time_name(name)
-        if not time_dimension in self.dims.keys():
-            dim = self.dataset.createDimension(time_dimension, size=None)
-            self.dims[time_dimension] = dim
-            var = self.dataset.createVariable(tstr, "f8", dimensions=(time_dimension,))
+        grp_name, _ = self._get_group_and_parameter_name(name)
+        grp = self.groups[grp_name]
+        if not time_dimension in self.dims[grp_name].keys():
+            dim = grp.createDimension(time_dimension, size=None)
+            self.dims[grp_name][time_dimension] = dim
+            var = grp.createVariable("time", "f8", dimensions=(time_dimension,))
             var.units = 'seconds since 1-1 1970 00:00:00'
             var.standard_name = 'time'
             var[:] = t
 
-    def _check_for_z_dimension(self, z):
-        if not "Z" in self.dims.keys():
-            dim = self.dataset.createDimension("Z", size=len(z))
-            self.dims["Z"] = dim
-            var = self.dataset.createVariable('z', "f8", dimensions=("Z",))
+    def _check_for_z_dimension(self, z, name):
+        grp_name, _ = self._get_group_and_parameter_name(name)
+        grp = self.groups[grp_name]
+        if not "Z" in self.dims[grp_name].keys():
+            dim = grp.createDimension("Z", size=len(z))
+            self.dims[grp_name]["Z"] = dim
+            var = grp.createVariable('z', "f8", dimensions=("Z",))
             var.units = 'm'
             var.standard_name = 'depth'
             var.long_name = 'water depth relative to sea surface'
             var.positive='down'
             var[:] = z
 
-
+    def _check_for_group(self, groupname):
+        if groupname not in self.groups:
+            group = self.groups['root'].createGroup(groupname)
+            self.groups[groupname] = group
+            self.dims[groupname] = {}
+        return self.groups[groupname]
+        
+    def _get_group_and_parameter_name(self, name):
+        grp, param = os.path.split(name)
+        grp = grp or 'root'
+        return grp, param
     
 class ncGliderFlight(ncHereon):
     ''' Minimal implementation of NetCDF file adhering to Hereon specs
